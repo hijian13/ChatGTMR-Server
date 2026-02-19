@@ -1,5 +1,6 @@
 const express = require("express");
 const jwt = require("jsonwebtoken");
+const bcrypt = require("bcrypt");
 
 const app = express();
 app.use(express.json());
@@ -7,7 +8,7 @@ app.use(express.json());
 let users = [];
 
 // ================= REGISTER =================
-app.post("/register", (req, res) => {
+app.post("/register", async (req, res) => {
   const { username, password } = req.body;
 
   if (users.length >= 100) {
@@ -19,24 +20,29 @@ app.post("/register", (req, res) => {
     return res.status(400).json({ message: "User already exists" });
   }
 
-  users.push({ username, password });
+  const hashedPassword = await bcrypt.hash(password, 10);
+
+  users.push({ username, password: hashedPassword });
 
   res.json({ message: "User registered successfully" });
 });
 
 // ================= LOGIN =================
-app.post("/login", (req, res) => {
+app.post("/login", async (req, res) => {
   const { username, password } = req.body;
 
-  const user = users.find(
-    u => u.username === username && u.password === password
-  );
+  const user = users.find(u => u.username === username);
 
   if (!user) {
     return res.status(400).json({ message: "Invalid credentials" });
   }
 
-  // 🔐 Create JWT Token
+  const isMatch = await bcrypt.compare(password, user.password);
+
+  if (!isMatch) {
+    return res.status(400).json({ message: "Invalid credentials" });
+  }
+
   const token = jwt.sign(
     { username: user.username },
     process.env.JWT_SECRET,
